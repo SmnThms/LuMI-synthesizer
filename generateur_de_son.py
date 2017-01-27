@@ -26,8 +26,12 @@ class Son:
     def __init__(self, debut, hauteur, timbre, enveloppe, duree=3):
         self.debut = debut*taux
         self.duree = duree*taux
+        if type(timbre) is str:
+            self.timbre = R[timbre]
+        else:
+            self.timbre = timbre
         self.spectre = np.zeros(self.duree//2+1)
-        timbre_transpose = R[timbre].freq[1000-np.floor(R[hauteur]):]
+        timbre_transpose = self.timbre.freq[1000-np.floor(R[hauteur]):]
         self.spectre[:duree*len(timbre_transpose):duree] = timbre_transpose
         self.enveloppe = Enveloppe(enveloppe,self.duree).profil # Evolution de l'intensité au cours du son
         self.signal = np.fft.irfft(self.spectre)*self.enveloppe
@@ -113,11 +117,13 @@ R.update({'3':Timbre()})
 R.update({'4':Timbre().harmoniques((0.1,0.05,0.1,0.05))})
 R.update({'voix':Timbre('1')})
    # Notes
-for i,clef in enumerate(('a','z','e','r','t','y','u','i','o','p')):
+for i,clef in enumerate(('a','z','e','r','t','y','u','i','o','p','q','s','d','f','g','h','j','k','l')):
     R.update({clef:261.63*2**(i/12)})
-R.update({'q':60,'s':60/(2**(1/12))})
+R.update({'w':60,'s':60/(2**(1/12))})
 
-partition = (Son(0,'e','3','sin',duree=4),Son(2,'i','3','sin'),Son(3,'p','3','sin'),Son(4,'e','3','sin',duree=4),Son(5,'q','4','lin',duree=3),Son(6,'s','4','sin',duree=4),Son(8,'e','voix','lin'),Son(10,'y','voix','lin'))
+#partition = Son(0,'e',Timbre('sifflement'),'sin')
+partition = Son(0,'a',Timbre('sifflement'),'sin'),Son(0,'i',Timbre('sifflement'),'sin'),Son(3,'p',Timbre('sifflement'),'sin'),Son(3,'a',Timbre('sifflement'),'sin'),Son(6,'a',Timbre('sifflement'),'sin'),Son(6,'d',Timbre('sifflement'),'sin'),Son(6,'r',Timbre('sifflement'),'sin'),
+#partition = (Son(0,'e','3','sin',duree=4),Son(2,'i','3','sin'),Son(3,'p','3','sin'),Son(4,'e','3','sin',duree=4),Son(5,'q','4','lin',duree=3),Son(6,'s','4','sin',duree=4),Son(8,'e','voix','lin'),Son(10,'y','voix','lin'))
 #partition = (Son(0,'a', '1', 'sin'),Son(1,'a','2','lin',4),Son(3,'r','1','sin'),Son(4,'p','3','sin'))
 s = jouer(partition)
 #plt.plot(s)
