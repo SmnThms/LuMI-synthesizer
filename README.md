@@ -9,11 +9,7 @@
 · gestion du jeu en direct (aspect non encore traité).
 
 
-Le générateur de son correspond au fichier generateur_de_son.py (il reste un bug pour qu'il puisse être lu directement).
-
 
 Améliorations rêvables : 
 afficher le spectrogramme joué en direct ; 
-moduler le son (pour lui donner de la distorsion, ou de la résonance…) en direct avec la molette de la souris ; 
-créer des timbres à partir d'enregistrement audio d'instruments réels ; 
 …
