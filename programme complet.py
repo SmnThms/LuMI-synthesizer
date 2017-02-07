@@ -4,14 +4,13 @@ Created on Tue Jan 24 11:30:57 2017
 
 @author: Zazou
 """
-
+import pyqtgraph as pg
 import sys
 import pyaudio
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import numpy as np
 from threading import Thread
-import time
 
 
 taux = 44100 #Hz (Sampling Rate)
@@ -24,6 +23,7 @@ R = {}
 for i,clef in enumerate(('w','s','x','d','c','v','g','b','h','n','j','k')):
     R[clef] = 261.63*2**(i/12.)
 
+  
 class Physique:
     def __init__(self):
         self.liste =[1,1,1]
@@ -67,11 +67,12 @@ class Physique:
     def sortie(self,cle,V,a,b,c):
         
         self.coefs = [a,b,c]
+        
         Play(cle,self.liste[0],self.liste[1])
         
 class Play():
     def __init__(self,hauteur, timbre, enveloppe, duree=3):
-
+        
         self.duree = duree*taux
         if type(timbre) is str:
             timbre = R[timbre]
@@ -80,86 +81,91 @@ class Play():
         timbre_transpose = timbre[1000-np.floor(R[hauteur]):]
         spectre[:duree*len(timbre_transpose):duree] = timbre_transpose
         #self.enveloppe = Enveloppe(enveloppe,self.duree).profil # Evolution de l'intensité au cours du son
-        signal = np.fft.irfft(spectre)*enveloppe
-        signal *= 0.2/np.max(signal)
+        self.signal = np.fft.irfft(spectre)*enveloppe
+        self.signal *= 0.2/np.max(self.signal)
 
         p = pyaudio.PyAudio()
         stream = p.open(format=pyaudio.paFloat32, channels=1, rate=44100, output=1)
-        stream.write(signal.astype(np.float32).tostring())
+        stream.write(self.signal.astype(np.float32).tostring())
         stream.close()
         p.terminate()
         
-        
 class Interface(QWidget,Thread):
     def __init__(self,parent):
+        
         Thread.__init__(self)
+        
         QWidget.__init__(self,parent =None)
+        
+
+        
         self.setWindowTitle(u"Synthé")
         self.parent = parent   #on garde une trace du parent
         self.setGeometry(5, 50,500,300) #geometrie initiale de la fenetre
         
         self.physique = Physique() #creation d'une instance de la classe Physique
+
         
         self.grid = QGridLayout()
         self.setLayout(self.grid)
         
         self.initialisation()
-        
+
         self.show()
     
     def initialisation(self):
         
+        self.cadre_bouton = QFrame()
+        self.grid.addWidget(self.cadre_bouton, 0,0)
+        self.cadre_bouton.setStyleSheet('QFrame {background-color: grey}')
+        self.cadre_bouton.setFrameShadow(QFrame.Sunken)
+        self.cadre_bouton.setFrameShape(QFrame.StyledPanel)
+        self.cadre_bouton.setFixedWidth(200)
+        self.cadre_bouton.setFixedHeight(200)
+        
+        self.grid0 = QGridLayout(self.cadre_bouton)
+        
         self.jouer = QPushButton("Jouer")
-        self.grid.addWidget(self.jouer, 0,0)
+        self.grid0.addWidget(self.jouer, 0,0)
         self.jouer.clicked.connect(self.f_interface)
         
         self.aide = QPushButton("Aide")
-        self.grid.addWidget(self.aide,1,0)
+        self.grid0.addWidget(self.aide,1,0)
         self.aide.clicked.connect(self.f_aide)
         
         self.quitter = QPushButton("Quitter")
-        self.grid.addWidget(self.quitter,2,0)
+        self.grid0.addWidget(self.quitter,2,0)
         self.quitter.clicked.connect(self.f_quit)
-
-        self.menubar = QMenuBar(fen)
-        self.menuFichier = QMenu(self.menubar)
-        self.menuFichier.setTitle("&Fichiers")
-        self.menuEdition = QMenu(self.menubar)
-        self.menuEdition.setTitle("&Edition")
-        self.menuAffichage = QMenu(self.menubar)
-        self.menuAffichage.setTitle("&Affichage")
-        self.grid.addWidget(self.menubar)
-        
+     
     def f_interface(self):
 
         #on enleve le boutton jouer
         self.jouer.close()
-        
-#VOLUME GENERAL : creation d'une barre de reglage pour le volume general
-        
-        self.volume = QSlider(Qt.Vertical)
-        self.grid.addWidget(self.volume,0,0)
-        self.volume.setMinimum(0)
-        self.volume.setMaximum(100)
-        self.volume.setValue(5)
-        
-        self.label_volume = QLabel("")
-        self.volume.valueChanged.connect(self.f_valuechange)
-        
+
 #CADRE REGLAGE coeffs harmoniques      
         
         #creation d'un cadre pour les reglages
         self.cadre_reglage = QFrame()
-        self.grid.addWidget(self.cadre_reglage, 2,1)
+        self.grid.addWidget(self.cadre_reglage, 0,1)
         self.cadre_reglage.setStyleSheet('QFrame {background-color: grey}')
         self.cadre_reglage.setFrameShadow(QFrame.Sunken)
         self.cadre_reglage.setFrameShape(QFrame.StyledPanel)
         self.cadre_reglage.setFixedWidth(550)
         self.cadre_reglage.setFixedHeight(200)
-
         
         #On utilisera grid3 pour placer des objets dans le cadre_reglage
         self.grid3 = QGridLayout(self.cadre_reglage)
+        
+        self.volume = QSlider(Qt.Vertical)
+        self.grid3.addWidget(self.volume,1,0)
+        self.volume.setMinimum(0)
+        self.volume.setMaximum(100)
+        self.volume.setValue(5)
+        label_volume = QLabel("Volume")
+        self.grid3.addWidget(label_volume,0,0,1,2)
+        self.label_volume = QLabel("")
+        self.volume.valueChanged.connect(self.f_valuechange)
+
         self.liste_barre = []
         for i in range(4):
             
@@ -169,12 +175,14 @@ class Interface(QWidget,Thread):
             self.barre_reglage.setMaximum(100)
             self.barre_reglage.setValue(10)
             self.liste_barre.append(self.barre_reglage)
-            self.grid3.addWidget(self.barre_reglage,1,i)
+            self.grid3.addWidget(self.barre_reglage,1,i+1)
             
+        
+        
 #CADRE FILTRES 
         
         self.cadre_filtre = QFrame()
-        self.grid.addWidget(self.cadre_filtre,1,1)
+        self.grid.addWidget(self.cadre_filtre,0,2)
         self.cadre_filtre.setStyleSheet('QFrame {background-color: grey}')
         self.cadre_filtre.setFrameShadow(QFrame.Sunken)
         self.cadre_filtre.setFrameShape(QFrame.StyledPanel)
@@ -224,18 +232,19 @@ class Interface(QWidget,Thread):
 #CADRE ENVELOPPE        
 
         self.cadre_enveloppe = QFrame()
-        self.grid.addWidget(self.cadre_enveloppe,1,2)
+        self.grid.addWidget(self.cadre_enveloppe,0,3)
         self.cadre_enveloppe.setStyleSheet('QFrame {background-color: grey}')
         self.cadre_enveloppe.setFrameShadow(QFrame.Sunken)
         self.cadre_enveloppe.setFrameShape(QFrame.StyledPanel)
-        self.cadre_enveloppe.setFixedWidth(550)
+        self.cadre_enveloppe.setFixedWidth(200)
         self.cadre_enveloppe.setFixedHeight(200)
         
         self.grid5 = QGridLayout(self.cadre_enveloppe)#on utilisera grod2 pour placer des widget dans cadre_filtre
         
-        self.sin = QCheckBox("Sinusoidale")        
+        self.sin = QCheckBox("Sinusoidale")       
         self.sin.clicked.connect(lambda:self.btnstate(self.sin))
-        self.grid5.addWidget(self.sin,0,0)        
+        self.grid5.addWidget(self.sin,0,0) 
+        
         
         self.lin = QCheckBox("lineaire")
         self.lin.clicked.connect(lambda:self.btnstate(self.lin))
@@ -248,13 +257,12 @@ class Interface(QWidget,Thread):
         
         #creation d'un cadre dans lequel seront les touches de piano
         self.cadre_touche = QFrame()
-        self.grid.addWidget(self.cadre_touche,0,1)
+        self.grid.addWidget(self.cadre_touche,1,0,1,2)
         self.cadre_touche.setStyleSheet('QFrame {background-color: brown}')
         self.cadre_touche.setFrameShadow(QFrame.Sunken)
         self.cadre_touche.setFrameShape(QFrame.StyledPanel)
         self.cadre_touche.setFixedWidth(650)
         self.cadre_touche.setFixedHeight(400)
-        
         self.grid2 = QGridLayout(self.cadre_touche)#on utilisera grod2 pour placer des widget dans cadre_touche
 
         for i,k,l in zip(liste_notes,range(12),touches):
@@ -281,6 +289,7 @@ class Interface(QWidget,Thread):
             if b.isChecked() == True:               
                 if int(self.taille_filtre.text()) > int(self.coupure.text()) and int(self.coupure.text()) > int(self.largeur_filtre.text()) :
                     self.physique.f_timbre("passe-haut",int(self.coupure.text()),int(self.largeur_filtre.text()),int(self.taille_filtre.text()),[self.liste_barre[0].value(),self.liste_barre[1].value(),self.liste_barre[2].value()])
+                    self.graphique()
                 else:
                     self.erreur_filtre()
                                  
@@ -288,22 +297,22 @@ class Interface(QWidget,Thread):
             if b.isChecked() == True:
                 if int(self.taille_filtre.text()) > int(self.coupure.text()) and int(self.coupure.text()) > int(self.largeur_filtre.text()) :
                     self.physique.f_timbre("passe-bas",int(self.coupure.text()),int(self.largeur_filtre.text()),int(self.taille_filtre.text()),[self.liste_barre[0].value(),self.liste_barre[1].value(),self.liste_barre[2].value()])
-                    
+                    self.graphique()
                 else:
                     self.erreur_filtre()
                 
         if b.text() == 'Aucun':
             if b.isChecked() == True:
                 self.physique.f_timbre("sans filtre",0,0,0,[self.liste_barre[0].value(),self.liste_barre[1].value(),self.liste_barre[2].value()])
-        
+                self.graphique()
         if b.text() =="Sinusoidale":
             if b.isChecked() == True:
                 self.physique.enveloppe("Sinusoidale")
-                
+                self.graphique()
         if b.text() == "lineaire":
             if b.isChecked() == True:
                 self.physique.enveloppe("lineaire")
-                
+                self.graphique()
 # CONNEXION CLAVIER
                 
     def keyPressEvent(self,event):
@@ -313,14 +322,24 @@ class Interface(QWidget,Thread):
             if key in touches:
                 Thread(target = self.physique.sortie, args = (key,self.volume.value(),self.liste_barre[0].value(),self.liste_barre[1].value(),self.liste_barre[2].value(),)).start()
         if modifiers == Qt.ShiftModifier:
-            print "shift pressé "
+            print "Shift enfoncé"
             
     def f_valuechange(self):
-               
-        self.label_volume.setText('Volume =' + str(self.volume.value()))
-        self.grid.addWidget(self.label_volume,3,0)        
-    
-    
+        self.label_volume.setText(str(self.volume.value()))
+        self.grid3.addWidget(self.label_volume,2,0)
+        
+    def graphique(self):
+                
+        fen_graphe = pg.GraphicsLayoutWidget()#créé un widget d'affichage de graphe
+        self.grid.addWidget(fen_graphe,1,2,1,2)
+        
+        graph_harmonique = fen_graphe.addPlot(row=0, col=0)#ajoute un graphe a gen_graphe
+        x=range(10000)
+        c = graph_harmonique.plot(y=self.physique.freq[x])
+
+        graph_filtre = fen_graphe.addPlot(row = 0,col=1)
+        c2 = graph_filtre.plot(y=self.physique.profil)
+
 # DIFFERENTES FENETRES D'ERREURS  
     
     def erreur_filtre(self):
@@ -344,11 +363,8 @@ class Interface(QWidget,Thread):
         
         ou cliquer simplement sur la touche de votre 
         choix.
-        
-        Le volume est reglable avec la barre de droite.
-        
-        Acceder aux réglages en cliquant sur "réglage" 
-        (pour l'instant ils ne servent à rien)""")
+      
+        """)
         pop_up.show()  
      
     def f_quit_reglage(self):
@@ -357,12 +373,14 @@ class Interface(QWidget,Thread):
     def f_quit(self):
         app.closeAllWindows()#ferme la fenetre principale et stoppe la boucle
 
-
+#class Graphique()
 #On verifie si il existe une instance de QApplication, si non on en crée une
+
 app = QApplication.instance() 
 if not app:
+    
     app = QApplication(sys.argv)
-
+    
 fen = Interface(None)
 app.exec_()
 
