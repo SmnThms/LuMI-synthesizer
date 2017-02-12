@@ -127,19 +127,6 @@ class Son:
             return np.ones(self.duree)
             
             
-########## STOCKAGE_PARAMETRES ##########
-class Stockage_parametres:
-    def __init__(self):
-        self.hauteur = []
-        self.timbre = []
-        self.enveloppe = []
-        self.reverb = []
-        self.vibrato = []
-    
-    def get(self):
-        return 
-            
-            
 ########## FONCTION JOUER ##########
 def jouer(partition):
     """
