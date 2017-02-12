@@ -400,19 +400,19 @@ class Interface(QWidget,Thread):
                 self.graphique()
         if b.text() =="Sinusoidale":
             if b.isChecked() == True:
-                self.physique.enveloppe = 'sinusoidale'
+                self.enveloppe = 'sinusoidale'
                 self.graphique()
         if b.text() == "lineaire":
             if b.isChecked() == True:
-                self.physique.enveloppe = 'lineaire'
+                self.enveloppe = 'lineaire'
                 self.graphique()
         if b.text() == "vibrato":
             if b.isChecked() == True:
-                self.physique.vibrato = True
+                self.vibrato = True
                 self.graphique()
         if b.text() == "reverb":
             if b.isChecked() == True:
-                self.physique.reverb = 'ir1'
+                self.reverb = 'ir1'
                 self.graphique()                
         
                 
