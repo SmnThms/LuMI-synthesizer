@@ -5,22 +5,25 @@ Created on Tue Jan 24 11:30:57 2017
 @author: Zazou
 """
 import pyqtgraph as pg
+import os
+from os import mkdir
 import sys
 import pyaudio
 from PyQt4.QtGui import *
 from PyQt4.QtCore import *
 import numpy as np
+import scipy
 from threading import Thread
-
+import wave
 
 taux = 44100 #Hz (Sampling Rate)
 
 #listes définies en global mais qui peuvent passer dans la classe Interface
 
-liste_notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
-touches = ['w','s','x','d','c','v','g','b','h','n','j','k']
+liste_notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B','C']
+touches = ['w','s','x','d','c','v','g','b','h','n','j','k','l']
 R = {}
-for i,clef in enumerate(('w','s','x','d','c','v','g','b','h','n','j','k')):
+for i,clef in enumerate(('w','s','x','d','c','v','g','b','h','n','j','k','l')):
     R[clef] = 261.63*2**(i/12.)
 
   
@@ -52,9 +55,9 @@ class Physique:
         
     
         for i,amplitude in enumerate(coefs):
-            self.freq[1000*(i+2)/(i+1)] += amplitude
+            self.freq[1000*(i+2)/(i+1)] += amplitude/100.
 
-        
+            
     def enveloppe(self,profil,duree=3):
         self.duree = duree*taux
         if profil=="Sinusoidale":            
@@ -71,15 +74,18 @@ class Physique:
         Play(cle,self.liste[0],self.liste[1])
         
 class Play():
-    def __init__(self,hauteur, timbre, enveloppe, duree=3):
+    def __init__(self,hauteur, timbre, enveloppe,reverb=False, vibrato=False,duree=3):
         
         self.duree = duree*taux
         if type(timbre) is str:
             timbre = R[timbre]
 
         spectre = np.zeros(self.duree//2+1)
+        
         timbre_transpose = timbre[1000-np.floor(R[hauteur]):]
         spectre[:duree*len(timbre_transpose):duree] = timbre_transpose
+        if reverb is not False:
+            self.spectre *= ajuste(self.reverb.freq,(duree*taux)//2+1,duree)
         #self.enveloppe = Enveloppe(enveloppe,self.duree).profil # Evolution de l'intensité au cours du son
         self.signal = np.fft.irfft(spectre)*enveloppe
         self.signal *= 0.2/np.max(self.signal)
@@ -102,6 +108,7 @@ class Interface(QWidget,Thread):
         self.setWindowTitle(u"Synthé")
         self.parent = parent   #on garde une trace du parent
         self.setGeometry(5, 50,500,300) #geometrie initiale de la fenetre
+        self.setStyleSheet('Interface {background-color: black}')
         
         self.physique = Physique() #creation d'une instance de la classe Physique
 
@@ -117,7 +124,7 @@ class Interface(QWidget,Thread):
         
         self.cadre_bouton = QFrame()
         self.grid.addWidget(self.cadre_bouton, 0,0)
-        self.cadre_bouton.setStyleSheet('QFrame {background-color: grey}')
+        self.cadre_bouton.setStyleSheet('QFrame {background-color: brown}')
         self.cadre_bouton.setFrameShadow(QFrame.Sunken)
         self.cadre_bouton.setFrameShape(QFrame.StyledPanel)
         self.cadre_bouton.setFixedWidth(200)
@@ -183,7 +190,7 @@ class Interface(QWidget,Thread):
         
         self.cadre_filtre = QFrame()
         self.grid.addWidget(self.cadre_filtre,0,2)
-        self.cadre_filtre.setStyleSheet('QFrame {background-color: grey}')
+        self.cadre_filtre.setStyleSheet('QFrame {background-color: brown}')
         self.cadre_filtre.setFrameShadow(QFrame.Sunken)
         self.cadre_filtre.setFrameShape(QFrame.StyledPanel)
         self.cadre_filtre.setFixedWidth(550)
@@ -233,7 +240,7 @@ class Interface(QWidget,Thread):
 
         self.cadre_enveloppe = QFrame()
         self.grid.addWidget(self.cadre_enveloppe,0,3)
-        self.cadre_enveloppe.setStyleSheet('QFrame {background-color: grey}')
+        self.cadre_enveloppe.setStyleSheet('QFrame {background-color: brown}')
         self.cadre_enveloppe.setFrameShadow(QFrame.Sunken)
         self.cadre_enveloppe.setFrameShape(QFrame.StyledPanel)
         self.cadre_enveloppe.setFixedWidth(200)
@@ -278,7 +285,120 @@ class Interface(QWidget,Thread):
                 self.grid2.addWidget(self.touche,0,k) 
             
             self.touche.clicked.connect(lambda event,a=l : self.physique.sortie(a,self.volume.value(),self.liste_barre[0].value(),self.liste_barre[1].value(),self.liste_barre[2].value()))
+            
+# CADRE SAUVEGARDE & ENREGISTREMENT
+        self.cadre_rec = QFrame()
+        self.grid.addWidget(self.cadre_rec,2,0,1,2)
+        self.cadre_rec.setStyleSheet('QFrame {background-color: green}')
+        self.cadre_rec.setFrameShadow(QFrame.Sunken)
+        self.cadre_rec.setFrameShape(QFrame.StyledPanel)
+        self.cadre_rec.setFixedWidth(650)
+        self.cadre_rec.setFixedHeight(400)
+        self.grid6 = QGridLayout(self.cadre_rec)   
+        
+        rec_button = QPushButton("Enregistrer")
+        self.grid6.addWidget(rec_button, 3,0)
+        rec_button.clicked.connect(self.f_test_rec)
+        
+        rec = QLabel(u"Durée de l'enregistrement")
+        self.grid6.addWidget(rec,0,0)
+        self.rec_value = QLineEdit("line1")
+        self.rec_value.setMaxLength(7)
+        self.rec_value.setText("")
+        self.grid6.addWidget(self.rec_value,0,1)
+        
+        rec_name = QLabel(u"Nom de l'enregistrement")
+        self.grid6.addWidget(rec_name,1,0)
+        self.rec_name = QLineEdit("line1")
+        self.rec_name.setMaxLength(20)
+        self.rec_name.setText("")
+        self.grid6.addWidget(self.rec_name,1,1)
+        
+        rec_rep = QLabel(u"Emplacement")
+        self.grid6.addWidget(rec_rep,2,0)
+        self.rec_rep = QLineEdit("line1")
+        self.rec_rep.setMaxLength(200)
+        self.rec_rep.setText(os.path.expanduser('~'))
+        self.grid6.addWidget(self.rec_rep,2,1)
+        
+                
+        
+            
+# ENREGISTREMENT
+    def f_test_rec(self):
+        self.rep = str(self.rec_rep.text()) 
+        self.a=1
+        if os.path.isdir(self.rep) ==0:
+            
+            message_erreur = QMessageBox(self)
+            message_erreur.setText(u"""
+            Il semblerait que le repertoire indiqué n'existe pas. 
+            Si vous en êtes conscientet que vous voulez créer 
+            un nouveau repertoire selon le chemin indiqué, 
+            cliquez sur "Apply".
+            
+            Sinon, chercher l'erreur dans votre chemin d'accès 
+            ou que son chemin d'accés soit mal écrit.
+            
+            
+#                    """)
+
+            message_erreur.setStandardButtons(QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel)
+            if QMessageBox.Save :
+                print "ok"
+                mkdir(os.path.expanduser(str(self.rec_rep.text())))
+                self.rep = str(self.rec_rep.text())
+                self.a = 0                
+            message_erreur.show()
+            self.f_rec()
+            
+        else:
+            self.a = 0
+            self.f_rec()         
+
+   
+    def f_rec(self):
+        if self.a ==0:
+            CHUNK = 1024
+            FORMAT = pyaudio.paInt16
+            CHANNELS = 2
+            RATE = 44100
+            RECORD_SECONDS = int(self.rec_value.text())
+            repertoire = self.rep
+            WAVE_OUTPUT_FILENAME = repertoire +'/'+ str(self.rec_name.text())+".wav"
     
+            p = pyaudio.PyAudio()
+    
+            stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
+    
+            print("* recording")
+    
+            frames = []
+    
+            for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+                    data = stream.read(CHUNK)
+                    frames.append(data)
+    
+            print("* done recording")
+    
+            stream.stop_stream()
+            stream.close()
+            p.terminate()
+    
+            wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(p.get_sample_size(FORMAT))
+            wf.setframerate(RATE)
+            wf.writeframes(b''.join(frames))
+            wf.close()
+
+            
+
+        
 # CONNEXION DU FILTRE & ENVELOPPE
     
     def btnstate(self,b):  
@@ -327,21 +447,33 @@ class Interface(QWidget,Thread):
     def f_valuechange(self):
         self.label_volume.setText(str(self.volume.value()))
         self.grid3.addWidget(self.label_volume,2,0)
-        
+#        
     def graphique(self):
                 
         fen_graphe = pg.GraphicsLayoutWidget()#créé un widget d'affichage de graphe
         self.grid.addWidget(fen_graphe,1,2,1,2)
-        
+
         graph_harmonique = fen_graphe.addPlot(row=0, col=0)#ajoute un graphe a gen_graphe
-        x=range(10000)
-        c = graph_harmonique.plot(y=self.physique.freq[x])
+        x=range(4000)
+        graph_harmonique.plot(y=self.physique.freq[x])
 
         graph_filtre = fen_graphe.addPlot(row = 0,col=1)
         c2 = graph_filtre.plot(y=self.physique.profil)
 
 # DIFFERENTES FENETRES D'ERREURS  
-    
+    def erreur_repertoire(self):
+        message_erreur = QMessageBox(self)
+        message_erreur.setText(u"""
+            Il semblerait que le repertoire indiqué n'existe pas. Si vous en êtes conscient
+            et que vous voulez créer un nouveau repertoire selon le chemin indiqué, cliquez sur
+            "créer repertoire".
+            
+            Sinon, chercher l'erreur dans votre chemin d'accès ou 
+            que son chemin d'accés soit mal écrit.
+            
+            
+                    """)
+        message_erreur.show()
     def erreur_filtre(self):
         message_erreur = QMessageBox(self)
         message_erreur.setText(u"""
